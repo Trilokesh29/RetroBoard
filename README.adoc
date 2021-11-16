@@ -1,3 +1,5 @@
+This is a retrospective board, which teams can use for conducting retrospctive online.
+
 == Dependencies ==
 npm: ``sudo apt install npm``
 
