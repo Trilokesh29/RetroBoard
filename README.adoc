@@ -23,8 +23,9 @@ sudo systemctl start mongod
 RUN
 ==============
 npm i --save
-
 npm start
+
+The modules can be deployed using ngnix on a local machine
 
 
 
