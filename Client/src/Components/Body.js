@@ -42,7 +42,9 @@ function Body() {
     if (teamName !== teamNameToIgnore) {
       let jsonObj = {
         params: {
-          team: teamName,
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
+          team: teamName
         },
       };
       let result = await Config.getAxiosInstance().get("getSprints", jsonObj);

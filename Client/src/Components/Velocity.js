@@ -70,6 +70,8 @@ function Velocity() {
     }
 
     var jsonObj = {
+      userName: localStorage.getItem("userName"),
+      sessionId: localStorage.getItem("sessionId"),
       team: Config.getTeamName(),
       sprint: Config.getSprintName(),
       spPlanned: spPlanned,
@@ -91,6 +93,8 @@ function Velocity() {
   function updateVelocity() {
     var jsonObj = {
       params: {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         team: Config.getTeamName(),
         sprint: Config.getSprintName(),
       },

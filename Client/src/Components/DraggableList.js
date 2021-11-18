@@ -21,6 +21,9 @@ class DraggableList extends Component {
   }
 
   handleSubmit(jsonObj) {
+    jsonObj["userName"] = localStorage.getItem("userName");
+    jsonObj["sessionId"] = localStorage.getItem("sessionId");
+
     Config.getAxiosInstance()
       .post("/update/Person", jsonObj)
       .then(this.props.onBoardUpdate);
@@ -29,14 +32,23 @@ class DraggableList extends Component {
   handleRemove(id) {
     if (window.confirm("Do you want to remove this item ?")) {
       Config.getAxiosInstance()
-        .post("/deletepost", { _id: id })
-        .then(this.props.onBoardUpdate);
+        .post("/deletepost", {
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
+          team: Config.getTeamName(),
+          _id: id
+        })
+        .then(this.props.onBoardUpdate).then(PubSub.publish(KChangeInVoteIdentifier)).catch(error => {
+          alert("[" + localStorage.getItem("userName") + "] dont have permission to remove!");
+        });
     }
   }
 
   handleVote(id) {
     let reqData = {
       params: {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         team: Config.getTeamName(),
         sprint: Config.getSprintName(),
       },
@@ -44,11 +56,17 @@ class DraggableList extends Component {
     Config.getAxiosInstance().get("checkIfVotingAllowed", reqData).then(res => {
       if (res.data[0] === true) {
         Config.getAxiosInstance()
-          .post("/addvote", { _id: id })
+          .post("/addvote", {
+            userName: localStorage.getItem("userName"),
+            sessionId: localStorage.getItem("sessionId"),
+            _id: id,
+            sprint: Config.getSprintName(),
+            team: Config.getTeamName()
+          })
           .then(this.props.onBoardUpdate).then(PubSub.publish(KChangeInVoteIdentifier));
       }
       else {
-        alert("Limit Reached! " + "Users -> [" + res.data[1] + "] Votes allowed -> [" + res.data[2] + "]");
+        alert("[" + localStorage.getItem("userName") + "] limit reached!!!");
       }
     });
 
@@ -56,13 +74,25 @@ class DraggableList extends Component {
 
   handleUnvote(id) {
     Config.getAxiosInstance()
-      .post("/removevote", { _id: id })
-      .then(res => { if (res.data === -1) { alert("Vote count is at the lowest"); } else { this.props.onBoardUpdate(); PubSub.publish(KChangeInVoteIdentifier) } });
+      .post("/removevote", {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
+        _id: id,
+        sprint: Config.getSprintName(),
+        team: Config.getTeamName()
+      })
+      .then(res => {
+        if (res.data === -1) { alert("Vote count is at the lowest"); }
+        else if (res.data === -2) { alert("[" + localStorage.getItem("userName") + "] did not vote this item"); }
+        else { this.props.onBoardUpdate(); PubSub.publish(KChangeInVoteIdentifier) }
+      });
   }
 
   handleTitleChange(e, col) {
     if (e !== this.props.displayName && !/^$/.test(e)) {
       let jsonObj = {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         column: col,
         value: e,
         team: Config.getTeamName(),
@@ -74,8 +104,12 @@ class DraggableList extends Component {
 
   handleAddActionPoint(id, actionPoint) {
     let jsonObj = {
+      userName: localStorage.getItem("userName"),
+      sessionId: localStorage.getItem("sessionId"),
       _id: id,
       actionPoint: actionPoint,
+      team: Config.getTeamName(),
+      sprint: Config.getSprintName()
     };
     Config.getAxiosInstance()
       .post("/addactionpoint", jsonObj)

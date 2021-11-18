@@ -1,11 +1,15 @@
 const MongoClient = require("mongodb").MongoClient;
 var ObjectID = require("mongodb").ObjectID;
+const bcrypt = require('bcrypt');
+const { use } = require("../routes/databasebroker");
 const dbName = "RetroBoard";
 const collectionName = "Teams";
 // this is a single collection which contains all the details
 const collectionHappiness = "Happiness";
 const collectionVelocity = "Velocity";
+const collectionLoginInfo = "Login";
 const votesAllowedPerMember = 3;
+const saltRounds = 10;
 
 class DBConnection {
   static async connectToMongo() {
@@ -16,6 +20,11 @@ class DBConnection {
       this.options
     );
     this.db = this.connection.db(dbName);
+
+    this.db.createCollection(collectionLoginInfo, function (err, result) {
+      if (err) throw err;
+      console.log("Collection :" + collectionLoginInfo + " is created!!!");
+    })
     this.db.createCollection(collectionName, function (err, result) {
       if (err) throw err;
       console.log("Collection :" + collectionName + " is created!!!");
@@ -48,12 +57,10 @@ DBConnection.options = {
 
 class DBClient {
   static async addItemToCollection(item) {
-    // console.log("addItemToCollection :" + item);
     return await DBConnection.db.collection(collectionName).insertOne(item);
   }
 
   static async viewCompleteBoard(teamName, sprintName) {
-    console.log("view board start :name = " + teamName + "::" + sprintName);
     let query = {
       team: teamName,
       sprint: sprintName,
@@ -117,7 +124,6 @@ class DBClient {
         if (err) throw err;
         else if (result) {
           // if setting exists: update
-          console.log(result);
           let update = {};
           update[col] = value;
           DBConnection.db
@@ -146,11 +152,17 @@ class DBClient {
       });
   }
 
-  static async getTeams() {
+  static async getTeams(userInfo) {
+
     let teams = await DBConnection.db
       .collection(collectionName)
       .distinct("team");
     return teams.sort();
+
+    // let userData = await DBConnection.db
+    //   .collection(collectionLoginInfo).findOne({ userName: userInfo.userName })
+
+    // return userData.teams.sort();
   }
 
   static async getSprintsForATeam(teamName) {
@@ -180,26 +192,64 @@ class DBClient {
     return await createCollection(sprintName);
   }
 
-  static async addVote(id) {
-    // console.log("addVote id = " + id);
-    return await DBConnection.db
-      .collection(collectionName)
-      .updateOne({ _id: id }, { $inc: { votes: 1 } });
-  }
+  static async addVote(userInfo) {
+    let voterExists = await DBConnection.db.collection(collectionName).findOne({ _id: userInfo._id, "Voter.List.voterName": userInfo.userName }
+    );
 
-  static async removeVote(id) {
-    // console.log("removeVote id = " + id);
-    let info = await DBConnection.db
-      .collection(collectionName).findOne({ _id: id });
-
-    console.log("vote count = " + info.votes);
-    if (info.votes > 0) {
-      return await DBConnection.db
-        .collection(collectionName)
-        .updateOne({ _id: id }, { $inc: { votes: -1 } });
+    if (null === voterExists) {
+      await DBConnection.db.collection(collectionName).updateOne({ _id: userInfo._id },
+        {
+          $addToSet:
+            { "Voter.List": { "voterName": userInfo.userName, "voteCount": 1 } }
+        },
+        { upsert: true }
+      );
+    }
+    else {
+      await DBConnection.db.collection(collectionName).updateOne({ _id: userInfo._id, "Voter.List.voterName": userInfo.userName },
+        { $inc: { "Voter.List.$.voteCount": 1 } });
     }
 
-    return JSON.stringify(-1);
+    return await DBConnection.db
+      .collection(collectionName)
+      .updateOne({ _id: userInfo._id }, { $inc: { votes: 1 } });
+
+  }
+
+  static async removeVote(userInfo) {
+
+    let returnVal = -2;
+
+    let info = await DBConnection.db
+      .collection(collectionName).findOne({ _id: userInfo._id });
+
+    let voterIndex = -1;
+
+    if (typeof info.Voter !== 'undefined' && typeof info.Voter.List !== 'undefined') {
+      for (let index = 0; index < info.Voter.List.length; index++) {
+        if (info.Voter.List[index].voterName === userInfo.userName) {
+          voterIndex = index;
+          break;
+        }
+      }
+    }
+
+    if ((-1 !== voterIndex) && (info.Voter.List[voterIndex].voteCount > 0)) {
+
+      await DBConnection.db.collection(collectionName).updateOne({ _id: userInfo._id, "Voter.List.voterName": userInfo.userName },
+        { $inc: { "Voter.List.$.voteCount": -1 } });
+
+      if (info.votes > 0) {
+        return await DBConnection.db
+          .collection(collectionName)
+          .updateOne({ _id: userInfo._id }, { $inc: { votes: -1 } });
+      }
+      else {
+        returnVal = -1;
+      }
+    }
+
+    return JSON.stringify(returnVal);
   }
 
   static async addActionPointToItem(actionData) {
@@ -216,13 +266,21 @@ class DBClient {
       .toArray();
   }
 
-  static async removeHappiness(id) {
+  static async removeHappiness(userInfo) {
+
     let myQuery = {
-      _id: id,
+      _id: userInfo.id,
     };
-    return await DBConnection.db
+    let happinessInfo = await DBConnection.db
       .collection(collectionHappiness)
-      .deleteOne(myQuery);
+      .findOne(myQuery);
+
+    if (happinessInfo.name === userInfo.userName) {
+      return await DBConnection.db
+        .collection(collectionHappiness)
+        .deleteOne(myQuery);
+    }
+    return JSON.stringify(-1);
   }
 
   static async updateHappiness(query) {
@@ -232,13 +290,40 @@ class DBClient {
       name: query.name,
       sprint: query.sprint,
     };
-    return await DBConnection.db
-      .collection(collectionHappiness)
-      .updateOne(
-        myQuery,
-        { $set: { happiness: query.happiness } },
-        { upsert: true }
-      );
+
+    let data = await DBConnection.db
+      .collection(collectionHappiness).findOne({
+        team: query.team,
+        name: query.name,
+        sprint: query.sprint
+      });
+
+
+    if (null === data) {
+      return await DBConnection.db
+        .collection(collectionHappiness)
+        .updateOne(
+          myQuery,
+          { $set: { happiness: query.happiness } },
+          { upsert: true });
+    }
+    else if (data.happiness !== query.happiness) {
+      await DBConnection.db
+        .collection(collectionHappiness).replaceOne(
+          {
+            team: query.team,
+            name: query.name,
+            sprint: query.sprint
+          },
+          {
+            team: query.team,
+            name: query.name,
+            sprint: query.sprint,
+            happiness: query.happiness
+          });
+    }
+
+    return data;
   }
 
   static async setVelocity(reqBody) {
@@ -288,19 +373,19 @@ class DBClient {
     return data;
   }
 
-  static async checkIfVotingAllowed(teamName, sprintName) {
+  static async checkIfVotingAllowed(userInfo) {
 
     let myQuery = {
-      team: teamName,
-      sprint: sprintName,
+      team: userInfo.team,
+      sprint: userInfo.sprint,
     };
 
-    let data = await DBConnection.db
-      .collection(collectionHappiness)
+    let users = await DBConnection.db
+      .collection(collectionName)
       .distinct("name", myQuery);
 
-    let totalVotesAllowed = (data.length) * votesAllowedPerMember;
     let total = 0;
+    let countOfUserVotes = 0;
 
     let sprintData = await DBConnection.db.collection(collectionName).find(myQuery).toArray();
 
@@ -308,9 +393,19 @@ class DBClient {
       if (typeof info.votes !== 'undefined') {
         total += info.votes;
       }
+
+      if ((typeof info.Voter !== 'undefined') && (typeof info.Voter.List !== 'undefined')) {
+
+        for (let index = 0; index < info.Voter.List.length; index++) {
+          if (info.Voter.List[index].voterName === userInfo.userName) {
+            countOfUserVotes += info.Voter.List[index].voteCount;
+            break;
+          }
+        }
+      }
     })
 
-    return [true, data.length, total];
+    return [(countOfUserVotes < votesAllowedPerMember), total];
   }
 
   static async getVelocity(query) {
@@ -350,7 +445,6 @@ class DBClient {
       sum += Number(data[index].happiness);
     }
 
-    // console.log("sum = " + sum, "length = " + length);
     const average = (sum / length).toFixed(2);
     let myRet = {
       average: average,
@@ -367,16 +461,19 @@ class DBClient {
       .limit(3)
       .toArray();
 
-    // console.log(JSON.stringify(data));
-
     return data;
   }
 
-  static async deletePost(id) {
-    // console.log("deletePost id = " + id);
-    return await DBConnection.db.collection(collectionName).deleteOne({
-      _id: id,
-    });
+  static async deletePost(userInfo) {
+
+    let postInfo = await DBConnection.db.collection(collectionName).findOne({ _id: userInfo._id });
+    if (postInfo.name === userInfo.userName)
+      return await DBConnection.db.collection(collectionName).deleteOne({
+        _id: userInfo._id,
+      });
+    else {
+      return -1;
+    }
   }
 
   static async moveAcrossColumn(updateData) {
@@ -472,10 +569,79 @@ class DBClient {
         { $set: { type: updateData.type, index: updateData.index } }
       );
   }
+
   static async getActionItemsForASprint(reqData) {
     return await DBConnection.db
       .collection(collectionName)
       .distinct("actionPoints", reqData);
+  }
+
+  static async verifyAndSignUp(signUpData) {
+
+    let doesUserExits = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: signUpData.userName });
+
+    if (doesUserExits) {
+      return JSON.stringify(-1);
+    }
+
+    signUpData.password = bcrypt.hashSync(signUpData.password, saltRounds);
+
+    let addUser = await DBConnection.db.collection(collectionLoginInfo).insertOne(signUpData);
+
+    if (!addUser)
+      return -2;
+
+    const hash = bcrypt.hashSync(addUser.ops[0]._id, saltRounds);
+
+    let userInfo =
+    {
+      sessionId: hash,
+      userName: addUser.ops[0].userName,
+      teams: addUser.ops[0].teams,
+      role: addUser.ops[0].role
+    };
+
+    return userInfo;
+  }
+
+  static async authenticate(loginData) {
+
+    let userInfo = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: loginData.userName });
+
+    if (!userInfo || !bcrypt.compareSync(loginData.password, userInfo.password)) {
+      return -1;
+    }
+
+    const hash = bcrypt.hashSync(userInfo._id, saltRounds);
+
+    let logInfo =
+    {
+      sessionId: hash,
+      userName: userInfo.userName,
+      teams: userInfo.teams,
+      role: userInfo.role
+    };
+
+    return logInfo;
+  }
+
+  static async isSessionValid(userInfo, checkTeamName) {
+
+    let doesUserExits = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: userInfo.userName });
+
+    if (!doesUserExits) {
+      return false;
+    }
+
+    if (!bcrypt.compareSync(doesUserExits._id.toString(), userInfo.sessionId)) {
+      return false;
+    }
+
+    // if (true === checkTeamName) {
+    //   return doesUserExits.teams.includes(userInfo.teamName)
+    // }
+
+    return true;
   }
 }
 

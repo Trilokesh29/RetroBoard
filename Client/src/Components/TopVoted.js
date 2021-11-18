@@ -17,7 +17,12 @@ function TopVoted() {
 
   function updateItems() {
     var jsonObj = {
-      params: { team: Config.getTeamName(), sprint: Config.getSprintName() },
+      params: {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
+        team: Config.getTeamName(),
+        sprint: Config.getSprintName()
+      },
     };
 
     Config.getAxiosInstance()

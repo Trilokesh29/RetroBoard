@@ -1,37 +1,50 @@
 {
-    "name": "panda-board",
-    "version": "1.0.0",
-    "description": "== Dependencies == npm: ``sudo apt install npm``",
-    "main": "index.js",
-    "dependencies": {
-        "@david.kucsai/react-pdf-table": "^0.3.0",
-        "@react-pdf/renderer": "^1.6.8",
-        "concurrently": "^5.1.0",
-        "file-saver": "^2.0.2",
-        "pubsub-js": "^1.9.0",
-        "react-contenteditable": "^3.3.3",
-        "react-fade-in": "^1.0.0",
-        "react-select": "^3.1.0",
-        "run": "^1.4.0",
-        "string-similarity": "^4.0.1",
-        "use-force-update": "^1.0.7",
-        "uuid": "^8.3.0",
-        "uuidv4": "^6.2.3"
-    },
-    "devDependencies": {
-        "react-beautiful-dnd": "^13.0.0"
-    },
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "client": "cd Client && npm start",
-        "server": "cd Server && npm start",
-        "start": "concurrently --kill-others \"npm run server\" \"npm run client\""
-    },
-    "repository": {
-        "type": "git",
-        "url": "ssh://git@bitbucket.tomtomgroup.com:7999/cspsa/panda-board.git"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC"
+  "name": "retrospective-tool",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@david.kucsai/react-pdf-table": "^0.3.0",
+    "@react-pdf/renderer": "^1.6.8",
+    "@testing-library/jest-dom": "^4.2.4",
+    "@testing-library/react": "^9.4.0",
+    "@testing-library/user-event": "^7.2.1",
+    "axios": "^0.19.2",
+    "bootstrap": "^4.4.1",
+    "chart.js": "^2.9.3",
+    "file-saver": "^2.0.2",
+    "immutability-helper": "^3.0.2",
+    "react": "^16.12.0",
+    "react-beautiful-dnd": "^13.0.0",
+    "react-bootstrap": "^1.0.0-beta.16",
+    "react-bootstrap-range-slider": "^0.3.0",
+    "react-bootstrap-slider": "^2.2.3",
+    "react-chartjs-2": "^2.9.0",
+    "react-dom": "^16.13.1",
+    "react-google-charts": "^3.0.15",
+    "react-router-dom": "^5.1.2",
+    "react-scripts": "^3.4.3",
+    "react-select": "^3.1.0",
+    "string-similarity": "^4.0.1"
+  },
+  "scripts": {
+    "start": "PORT=8081 react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
 }

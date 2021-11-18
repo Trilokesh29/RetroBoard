@@ -55,6 +55,8 @@ const Board = forwardRef((props, ref) => {
   useImperativeHandle(ref, () => ({
     update(sortType) {
       var jsonObj = {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         team: Config.getTeamName(),
         sprint: Config.getSprintName(),
         criteria: sortType
@@ -81,6 +83,8 @@ const Board = forwardRef((props, ref) => {
     else {
       let reqData = {
         params: {
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
           team: Config.getTeamName(),
           sprint: Config.getSprintName(),
         },
@@ -99,8 +103,18 @@ const Board = forwardRef((props, ref) => {
 
   function populateBoard(sortingType) {
     var url = window.location.href.replace(/^.*\/\/[^/]+/, "");
+    url += "/userName/" + localStorage.getItem("userName");
+
+    var sessionInfo =
+    {
+      params:
+      {
+        sessionId: localStorage.getItem("sessionId")
+      }
+    }
+
     Config.getAxiosInstance()
-      .get(url)
+      .get(url, sessionInfo)
       .then((res) => {
         const board = res.data.items.sort((a, b) => {
           if (sortingType === "vote") {
@@ -145,6 +159,8 @@ const Board = forwardRef((props, ref) => {
 
     Config.getAxiosInstance()
       .post("/moveacrosscolumn", {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         _id: boardItems[source.droppableId][source.index]._id,
         type: destination.droppableId,
         //index: destination.index

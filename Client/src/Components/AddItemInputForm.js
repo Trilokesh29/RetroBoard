@@ -20,7 +20,7 @@ function AddItemInputForm(props) {
     if (!/[^$|^a-zA-Z]/.test(author) && text !== "") {
       let jsonObj = {
         sprint: Config.getSprintName(),
-        name: author,
+        name: localStorage.getItem("userName"),
         type: props.name,
         message: text,
         date: new Date(),
@@ -32,10 +32,6 @@ function AddItemInputForm(props) {
       setText("");
       setAuthor("");
     }
-  }
-
-  function changeHandler(event) {
-    setAuthor(event.target.value);
   }
 
   return (
@@ -55,13 +51,9 @@ function AddItemInputForm(props) {
                 <InputGroup.Text id="basic-addon1"> @ </InputGroup.Text>
               </InputGroup.Prepend>{" "}
               <FormControl
-                value={author}
-                author="author"
-                onChange={changeHandler}
+                value={localStorage.getItem("userName")}
                 type="text"
                 placeholder="Username"
-                isValid={!/[^a-zA-Z]/.test(author) && author !== ""}
-                isInvalid={/[^a-zA-Z]/.test(author) || author === ""}
                 required
               />
             </InputGroup>{" "}

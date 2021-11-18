@@ -21,10 +21,22 @@ class MenuList extends Component {
 
   updateList() {
     var jsonObj = {};
+
+    if (this.props.getItemsQuery === "/getTeams") {
+      jsonObj = {
+        params: {
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId")
+        },
+      };
+    }
+
     if (this.props.getItemsQuery === "/getSprints") {
       jsonObj = {
         params: {
-          team: Config.getTeamName(),
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
+          team: Config.getTeamName()
         },
       };
     }
@@ -57,6 +69,9 @@ class MenuList extends Component {
   }
 
   handleSubmit(jsonObj) {
+    jsonObj["userName"] = localStorage.getItem("userName");
+    jsonObj["sessionId"] = localStorage.getItem("sessionId");
+
     Config.getAxiosInstance()
       .post(this.createNewItemQuery, jsonObj)
       .then((_) => this.updateList());

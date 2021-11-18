@@ -58,7 +58,7 @@ class Chart extends Component {
           },
           title: {
             display: true,
-            text: "Happiness Trend For " + '"' + this.props.teamName + '"',
+            text: "Happiness Trend For `" + this.props.teamName + "`",
             fontFamily: "Roboto",
             fontSize: 15,
           },
@@ -126,7 +126,7 @@ class Chart extends Component {
           responsive: true,
           title: {
             display: true,
-            text: "Velocity Trend For " + '"' + this.props.teamName + '"',
+            text: "Velocity Trend For `" + this.props.teamName + "`",
             fontFamily: "Roboto",
             fontSize: 15,
           },
@@ -207,6 +207,8 @@ class Chart extends Component {
       } else {
         let reqData = {
           params: {
+            userName: localStorage.getItem("userName"),
+            sessionId: localStorage.getItem("sessionId"),
             team: this.props.teamName,
             pi: selectedOption.value,
           },
@@ -244,6 +246,8 @@ class Chart extends Component {
     if (teamName !== teamNameToIgnore) {
       let reqData = {
         params: {
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
           team: teamName,
         },
       };
@@ -302,6 +306,8 @@ class Chart extends Component {
       sprints.forEach(async (sprint, index) => {
         let reqObj = {
           params: {
+            userName: localStorage.getItem("userName"),
+            sessionId: localStorage.getItem("sessionId"),
             team: teamName,
             sprint: sprint,
           },
@@ -346,8 +352,8 @@ class Chart extends Component {
           sprints.length &&
           invalidVelocityDataCount !== sprints.length &&
           sprints.length ===
-            this.state.Velocity.datasets[2].data.filter(Boolean).length +
-              invalidVelocityDataCount
+          this.state.Velocity.datasets[2].data.filter(Boolean).length +
+          invalidVelocityDataCount
         ) {
           let Velocity = JSON.parse(JSON.stringify(this.state.Velocity));
 
@@ -415,6 +421,8 @@ class Chart extends Component {
 
         let jsonObj = {
           params: {
+            userName: localStorage.getItem("userName"),
+            sessionId: localStorage.getItem("sessionId"),
             team: teamName,
             sprint: sprint,
           },
@@ -436,8 +444,8 @@ class Chart extends Component {
           sprints.length &&
           sprints.length !== invalidHappinessDataCount &&
           sprints.length ===
-            this.state.Happiness.datasets[0].data.filter(Boolean).length +
-              invalidHappinessDataCount
+          this.state.Happiness.datasets[0].data.filter(Boolean).length +
+          invalidHappinessDataCount
         ) {
           // this is to remove null from the array
           let Happiness = JSON.parse(JSON.stringify(this.state.Happiness));
@@ -528,8 +536,8 @@ class Chart extends Component {
                   <h2> Happiness Trend Is Loading... </h2>{" "}
                 </div>
               ) : (
-                this.DecideTheText()
-              )}{" "}
+                      this.DecideTheText()
+                    )}{" "}
             </div>{" "}
           </Col>{" "}
           <Col lg>
@@ -552,8 +560,8 @@ class Chart extends Component {
                   <h2> Velocity Chart Loading... </h2>{" "}
                 </div>
               ) : (
-                <div> {} </div>
-              )}{" "}
+                      <div> {} </div>
+                    )}{" "}
             </div>{" "}
             {this.state.isPIsLoaded === statusComplete ? (
               <Select
@@ -563,8 +571,8 @@ class Chart extends Component {
                 options={this.state.pis}
               ></Select>
             ) : (
-              <div> {} </div>
-            )}{" "}
+                <div> {} </div>
+              )}{" "}
           </Col>{" "}
         </Row>{" "}
       </Container>

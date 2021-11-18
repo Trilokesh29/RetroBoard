@@ -13,7 +13,7 @@ import Alert from "react-bootstrap/Alert";
 
 const Happiness = () => {
   const [value, setValue] = useState(3.0);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(localStorage.getItem("userName"));
   const [average, setAverage] = useState("");
   const [happinessList, setHappinessList] = useState([]);
 
@@ -25,9 +25,11 @@ const Happiness = () => {
   function handleSubmit(event) {
     event.preventDefault();
     var jsonObj = {
+      userName: localStorage.getItem("userName"),
+      sessionId: localStorage.getItem("sessionId"),
       team: Config.getTeamName(),
       sprint: Config.getSprintName(),
-      name: name,
+      name: localStorage.getItem("userName"),
       happiness: value,
     };
 
@@ -58,6 +60,8 @@ const Happiness = () => {
   function updateAverage() {
     var jsonObj = {
       params: {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         team: Config.getTeamName(),
         sprint: Config.getSprintName(),
       },
@@ -72,8 +76,15 @@ const Happiness = () => {
   function removeHappiness(e) {
     if (window.confirm("Do you want to remove happiness ?")) {
       Config.getAxiosInstance()
-        .post("removeHappiness", { id: e.currentTarget.dataset.id })
-        .then(() => {
+        .post("removeHappiness", {
+          userName: localStorage.getItem("userName"),
+          sessionId: localStorage.getItem("sessionId"),
+          id: e.currentTarget.dataset.id
+        })
+        .then((result) => {
+          if (-1 === result.data) {
+            alert("[" + localStorage.getItem("userName") + "] does not have permission!");
+          }
           updateAverage();
         })
         .then(() => {
@@ -85,6 +96,8 @@ const Happiness = () => {
   function updateList() {
     var jsonObj = {
       params: {
+        userName: localStorage.getItem("userName"),
+        sessionId: localStorage.getItem("sessionId"),
         team: Config.getTeamName(),
         sprint: Config.getSprintName(),
       },
@@ -149,13 +162,11 @@ const Happiness = () => {
                 </Col>
                 <Col xs lg="2" style={{ paddingLeft: "0", paddingRight: "0" }}>
                   <FormControl
-                    value={name}
+                    value={localStorage.getItem("userName")}
                     name="name"
                     onChange={changeHandler}
                     type="text"
                     placeholder="Name"
-                    isValid={!/[^a-zA-Z]/.test(name) && name !== ""}
-                    isInvalid={/[^a-zA-Z]/.test(name) || name === ""}
                     required
                   />
                 </Col>
