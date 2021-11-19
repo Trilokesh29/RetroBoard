@@ -17,7 +17,6 @@ function LoginPage() {
     const [confirmPassword, setConfirmPassword] = useState("");
 
     const handleSubmit = (event) => {
-        const form = event.currentTarget;
 
         if (register) {
             let jsonObj = {

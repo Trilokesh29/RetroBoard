@@ -204,6 +204,8 @@ class Chart extends Component {
       if (selectedOption.value === -1) {
         let sprints = await this.props.sprints;
         this.updateVelocityList(this.props.teamName, sprints);
+        this.updateHapinessList(this.props.teamName, sprints);
+
       } else {
         let reqData = {
           params: {
@@ -217,7 +219,8 @@ class Chart extends Component {
         Config.getAxiosInstance()
           .get("getSprintsForAPI", reqData)
           .then((sprints) => {
-            this.updateVelocityList(this.props.teamName, sprints.data);
+            this.updateHapinessList(this.props.teamName, sprints.data)
+            this.updateVelocityList(this.props.teamName, sprints.data)
           });
       }
 
@@ -295,6 +298,10 @@ class Chart extends Component {
     this.state.Velocity.datasets[0].data.length = 0;
     this.state.Velocity.datasets[1].data.length = 0;
     this.state.Velocity.datasets[2].data.length = 0;
+    
+    this.state.Happiness.labels.length = 0;
+    this.state.Happiness.datasets[0].data.length = 0;
+    this.state.Happiness.datasets[1].data.length = 0;
   }
 
   updateVelocityList = async (teamName, sprints) => {

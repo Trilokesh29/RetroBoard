@@ -50,7 +50,6 @@ function Item(props) {
                     value={actionPoint}
                     onChange={e => setActionPoint(e.target.value)}
                     type="text"
-                    placeholder="Action point"
                     required
                     noValidate
                   />

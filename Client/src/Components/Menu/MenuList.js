@@ -3,6 +3,7 @@ import Nav from "react-bootstrap/Nav";
 import CreateItemForm from "./CreateItemForm";
 import Config from "../../Configuration";
 import stringSimilarity from "string-similarity";
+import { Dropdown } from 'react-bootstrap';
 
 class MenuList extends Component {
   constructor(props) {
@@ -191,6 +192,23 @@ class MenuList extends Component {
     return <h4> List Of Sprints </h4>;
   }
 
+  displayAppropriateTextAndCondeseLongList(action)
+  {
+    var items = this.state.items;
+
+    if(action !== "condense")
+    { 
+      return (<h7> Select from complete list </h7>)
+    }
+    else
+    {
+      return(
+        <div>
+          {items.slice(Math.max(items.length - 10, 0))}
+        </div>) 
+    }
+  }
+
   render() {
     return (
       <Nav defaultActiveKey="/" className="flex-column">
@@ -203,7 +221,21 @@ class MenuList extends Component {
         <h3>
           <i className="fas fa-bars"> </i> Menu{" "}
         </h3>{" "}
-        <div> {this.checkIfSearchOptionIsRequired()} </div> {this.state.items}{" "}
+        <div> {this.checkIfSearchOptionIsRequired()} </div>         
+        <div className='dropdown'>
+        <Dropdown>
+        <Dropdown.Toggle 
+          variant="secondary btn-sm" 
+        id="dropdown-advanced">
+          {this.displayAppropriateTextAndCondeseLongList()}
+        </Dropdown.Toggle>
+        <Dropdown.Menu style={{backgroundColor:'#73a47'}}>
+          {this.state.items}{" "}
+        </Dropdown.Menu>
+        </Dropdown>
+                {this.displayAppropriateTextAndCondeseLongList("condense")}
+        </div>
+
         <CreateItemForm
           onSubmit={this.handleSubmit}
           itemName={this.props.itemName}

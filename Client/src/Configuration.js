@@ -5,7 +5,7 @@ var axiosInstance = null;
 class Configuration {
     static getAxiosInstance() {
         if (axiosInstance === null) {
-            axiosInstance = axios.create({ baseURL: "http://10.70.21.130:3000" });
+            axiosInstance = axios.create({ baseURL: "http://localhost:3000" });
         }
         return axiosInstance;
     }

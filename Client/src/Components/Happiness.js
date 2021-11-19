@@ -20,6 +20,7 @@ const Happiness = () => {
   useEffect(() => {
     updateAverage();
     updateList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleSubmit(event) {

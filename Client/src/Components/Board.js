@@ -73,7 +73,8 @@ const Board = forwardRef((props, ref) => {
     }
   }));
 
-  useEffect(updateBoard, []);
+  useEffect(updateBoard // eslint-disable-next-line react-hooks/exhaustive-deps
+, []);
 
   function updateBoard(sortType, fetchSortingCriteria) {
 
