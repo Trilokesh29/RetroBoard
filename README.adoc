@@ -1,31 +1,25 @@
-This is a retrospective board, which teams can use for conducting retrospective online.
+= RetroBoard
 
-== Dependencies ==
-npm: ``sudo apt install npm``
+The canonical setup and run instructions now live in `README.md`.
 
-node-js: ``sudo apt install nodejs``
+Use the repo root and run:
 
-mongo-db:
-```
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 4B7C549A058F8B6B
-
-echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.2 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb.list
-
-sudo apt update
-
-sudo apt install mongodb-org
-
-sudo systemctl enable mongod
-
-sudo systemctl start mongod
-```
-
-RUN
-==============
-npm i --save
+----
+npm run setup
 npm start
+----
 
-The modules can be deployed using ngnix on a local machine
+Then open `http://localhost:8081`.
 
+For a no-server demo:
 
+----
+npm run setup:demo
+npm run demo
+----
 
+For demo mode with live Jira pulls through a local bridge:
+
+----
+npm run demo:jira
+----

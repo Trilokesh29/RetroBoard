@@ -1,61 +1,130 @@
-const MongoClient = require("mongodb").MongoClient;
-var ObjectID = require("mongodb").ObjectID;
-const bcrypt = require('bcrypt');
-const { use } = require("../routes/databasebroker");
+const { MongoClient } = require("mongodb");
+const {
+  createIdentifier,
+  createPasswordHash,
+  createSessionToken,
+  encryptSecret,
+  hashSessionToken,
+  verifyPassword,
+} = require("../auth/security");
 const dbName = "RetroBoard";
 const collectionName = "Teams";
 // this is a single collection which contains all the details
 const collectionHappiness = "Happiness";
 const collectionVelocity = "Velocity";
 const collectionLoginInfo = "Login";
+const collectionSessions = "Sessions";
+const collectionTeamSettings = "TeamSettings";
 const votesAllowedPerMember = 3;
-const saltRounds = 10;
+const sessionDurationInMs = 1000 * 60 * 60 * 24 * 7;
+const defaultUserRole = ["user"];
+const defaultTeams = ["test_playground", "ehv_psa_all"];
+const defaultColumns = {
+  setting: "columns",
+  Good: "Good",
+  Bad: "Bad",
+  Ugly: "Ugly",
+};
+const defaultTeamConfiguration = {
+  jira: {
+    enabled: false,
+    boardUrl: "",
+    baseUrl: "",
+    boardId: "",
+    projectKey: "",
+    userName: "",
+    hasCredentials: false,
+  },
+};
+
+function normalizeUserRecord(userRecord) {
+  if (!userRecord) {
+    return null;
+  }
+
+  return {
+    id: userRecord._id,
+    userName: userRecord.userName,
+    emailId: userRecord.emailId,
+    role: userRecord.role || defaultUserRole,
+    teams: userRecord.teams || defaultTeams,
+  };
+}
 
 class DBConnection {
   static async connectToMongo() {
     if (this.db) return this.db;
-    this.connection = await MongoClient.connect(
-      this.url,
-      { useUnifiedTopology: true },
-      this.options
-    );
+    this.connection = new MongoClient(this.url, this.options);
+    await this.connection.connect();
     this.db = this.connection.db(dbName);
 
     this.db.createCollection(collectionLoginInfo, function (err, result) {
-      if (err) throw err;
-      console.log("Collection :" + collectionLoginInfo + " is created!!!");
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionLoginInfo + " is ready");
+    })
+    this.db.createCollection(collectionSessions, function (err, result) {
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionSessions + " is ready");
     })
     this.db.createCollection(collectionName, function (err, result) {
-      if (err) throw err;
-      console.log("Collection :" + collectionName + " is created!!!");
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionName + " is ready");
     });
     this.db.createCollection(collectionHappiness, function (err, result) {
-      if (err) throw err;
-      console.log("Collection :" + collectionHappiness + " is created!!!");
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionHappiness + " is ready");
     });
     this.db.createCollection(collectionVelocity, function (err, result) {
-      if (err) throw err;
-      console.log("Collection :" + collectionVelocity + " is created!!!");
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionVelocity + " is ready");
     });
+    this.db.createCollection(collectionTeamSettings, function (err, result) {
+      if (err && err.codeName !== "NamespaceExists") throw err;
+      console.log("Collection :" + collectionTeamSettings + " is ready");
+    });
+    this.db.collection(collectionLoginInfo).createIndex({ userName: 1 }, { unique: true });
+    this.db.collection(collectionLoginInfo).createIndex({ emailId: 1 }, { unique: true, sparse: true });
+    this.db.collection(collectionSessions).createIndex({ sessionHash: 1 }, { unique: true });
+    this.db.collection(collectionSessions).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    this.db.collection(collectionTeamSettings).createIndex({ teamName: 1 }, { unique: true });
     console.log("database connection complete!!!");
     return this.db;
   }
   static async closeDB() {
-    this.connection.close();
+    if (this.connection) {
+      await this.connection.close();
+    }
     console.log("DB closed");
   }
 }
 
 DBConnection.db = null;
 DBConnection.connection = null;
-DBConnection.url = "mongodb://127.0.0.1:27017/";
+DBConnection.url = process.env.MONGO_URL || "mongodb://127.0.0.1:27017/";
 DBConnection.options = {
-  bufferMaxEntries: 0,
-  reconnectTries: 5000,
-  useNewUrlParser: true,
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
 };
 
 class DBClient {
+  static sanitizeTeamConfiguration(teamConfiguration) {
+    if (!teamConfiguration || !teamConfiguration.jira) {
+      return { ...defaultTeamConfiguration };
+    }
+
+    return {
+      jira: {
+        enabled: Boolean(teamConfiguration.jira.enabled),
+        boardUrl: teamConfiguration.jira.boardUrl || "",
+        baseUrl: teamConfiguration.jira.baseUrl || "",
+        boardId: teamConfiguration.jira.boardId || "",
+        projectKey: teamConfiguration.jira.projectKey || "",
+        userName: teamConfiguration.jira.userName || "",
+        hasCredentials: Boolean(teamConfiguration.jira.apiTokenEncrypted),
+      },
+    };
+  }
+
   static async addItemToCollection(item) {
     return await DBConnection.db.collection(collectionName).insertOne(item);
   }
@@ -93,7 +162,46 @@ class DBClient {
 
   static async getColumnSettings(team) {
     let dbQuery = { teamName: team, setting: "columns" };
-    return await DBConnection.db.collection(collectionName).findOne(dbQuery);
+    const storedSettings = await DBConnection.db.collection(collectionName).findOne(dbQuery);
+    if (!storedSettings) {
+      return { ...defaultColumns, teamName: team };
+    }
+    return storedSettings;
+  }
+
+  static async getTeamConfiguration(teamName) {
+    const teamConfiguration = await DBConnection.db
+      .collection(collectionTeamSettings)
+      .findOne({ teamName });
+
+    return DBClient.sanitizeTeamConfiguration(teamConfiguration);
+  }
+
+  static async setTeamConfiguration(teamName, integration = {}) {
+    const jiraConfig = integration.jira || {};
+    const isJiraEnabled = Boolean(jiraConfig.enabled);
+
+    return await DBConnection.db.collection(collectionTeamSettings).updateOne(
+      { teamName },
+      {
+        $set: {
+          teamName,
+          jira: {
+            enabled: isJiraEnabled,
+            boardUrl: isJiraEnabled ? String(jiraConfig.boardUrl || "").trim() : "",
+            baseUrl: isJiraEnabled ? String(jiraConfig.baseUrl || "").trim().replace(/\/+$/, "") : "",
+            boardId: isJiraEnabled ? String(jiraConfig.boardId || "").trim() : "",
+            projectKey: isJiraEnabled ? String(jiraConfig.projectKey || "").trim().toUpperCase() : "",
+            userName: isJiraEnabled ? String(jiraConfig.userName || "").trim() : "",
+            apiTokenEncrypted:
+              isJiraEnabled && jiraConfig.apiToken
+                ? encryptSecret(String(jiraConfig.apiToken))
+                : "",
+          },
+        },
+      },
+      { upsert: true }
+    );
   }
 
   static async findSprint(teamName, sprintName) {
@@ -118,38 +226,40 @@ class DBClient {
       teamName: teamName,
       setting: "columns",
     };
-    return await DBConnection.db
-      .collection(collectionName)
-      .findOne(settingsQuery, function (err, result) {
-        if (err) throw err;
-        else if (result) {
-          // if setting exists: update
-          let update = {};
-          update[col] = value;
-          DBConnection.db
-            .collection(collectionName)
-            .updateOne(
-              { _id: new ObjectID(result._id) },
-              { $set: update },
-              { upsert: false }
-            );
-        } // if setting does not exist: create one
-        else {
-          let defaultColumns = {
-            teamName: teamName,
-            setting: "columns",
-            Good: "Good",
-            Bad: "Bad",
-            Ugly: "Ugly",
-          };
-          defaultColumns[col] = value;
-          DBConnection.db
-            .collection(collectionName)
-            .insertOne(defaultColumns, function (err, result) {
-              if (err) throw err;
-            });
-        }
-      });
+    return await DBConnection.db.collection(collectionName).updateOne(
+      settingsQuery,
+      {
+        $set: {
+          [col]: value,
+        },
+        $setOnInsert: {
+          ...defaultColumns,
+          teamName,
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  static async applyColumnTemplate(teamName, columns) {
+    let settingsQuery = {
+      teamName,
+      setting: "columns",
+    };
+
+    return await DBConnection.db.collection(collectionName).updateOne(
+      settingsQuery,
+      {
+        $set: {
+          teamName,
+          setting: "columns",
+          Good: columns.Good,
+          Bad: columns.Bad,
+          Ugly: columns.Ugly,
+        },
+      },
+      { upsert: true }
+    );
   }
 
   static async getTeams(userInfo) {
@@ -190,6 +300,62 @@ class DBClient {
 
   static async createNewSprint(sprintName) {
     return await createCollection(sprintName);
+  }
+
+  static async createSession(userRecord) {
+    const sessionToken = createSessionToken();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + sessionDurationInMs);
+
+    await DBConnection.db.collection(collectionSessions).insertOne({
+      _id: createIdentifier(),
+      userId: userRecord._id,
+      sessionHash: hashSessionToken(sessionToken),
+      createdAt: now,
+      expiresAt,
+      lastSeenAt: now,
+    });
+
+    return sessionToken;
+  }
+
+  static async revokeSession(sessionToken) {
+    if (!sessionToken) {
+      return;
+    }
+
+    await DBConnection.db
+      .collection(collectionSessions)
+      .deleteOne({ sessionHash: hashSessionToken(sessionToken) });
+  }
+
+  static async getUserForSession(sessionToken) {
+    if (!sessionToken) {
+      return null;
+    }
+
+    const sessionRecord = await DBConnection.db
+      .collection(collectionSessions)
+      .findOne({ sessionHash: hashSessionToken(sessionToken) });
+
+    if (!sessionRecord || new Date(sessionRecord.expiresAt).getTime() <= Date.now()) {
+      return null;
+    }
+
+    const userRecord = await DBConnection.db
+      .collection(collectionLoginInfo)
+      .findOne({ _id: sessionRecord.userId });
+
+    if (!userRecord) {
+      return null;
+    }
+
+    await DBConnection.db.collection(collectionSessions).updateOne(
+      { _id: sessionRecord._id },
+      { $set: { lastSeenAt: new Date() } }
+    );
+
+    return normalizeUserRecord(userRecord);
   }
 
   static async addVote(userInfo) {
@@ -339,6 +505,10 @@ class DBClient {
           spBurnt: reqBody.spBurnt,
           pi: reqBody.pi,
           bbAccuracy: reqBody.bbAccuracy,
+          source: reqBody.source || "manual",
+          jiraSprintId: reqBody.jiraSprintId || "",
+          jiraSprintName: reqBody.jiraSprintName || "",
+          syncedAt: reqBody.syncedAt || "",
         },
       },
       { upsert: true }
@@ -416,9 +586,10 @@ class DBClient {
   }
 
   static async getPIListForATeam(query) {
-    return await DBConnection.db
+    const piList = await DBConnection.db
       .collection(collectionVelocity)
       .distinct("pi", query);
+    return piList.filter(Boolean);
   }
   static async getSprintsForAPI(query) {
     let sprints = await DBConnection.db
@@ -561,6 +732,36 @@ class DBClient {
       });
   }
 
+  static async deleteSprint(teamName, sprintName) {
+    await DBConnection.db.collection(collectionVelocity).deleteMany({
+      team: teamName,
+      sprint: sprintName,
+    });
+    await DBConnection.db.collection(collectionHappiness).deleteMany({
+      team: teamName,
+      sprint: sprintName,
+    });
+    return DBConnection.db.collection(collectionName).deleteMany({
+      team: teamName,
+      sprint: sprintName,
+    });
+  }
+
+  static async deleteTeam(teamName) {
+    await DBConnection.db.collection(collectionVelocity).deleteMany({
+      team: teamName,
+    });
+    await DBConnection.db.collection(collectionHappiness).deleteMany({
+      team: teamName,
+    });
+    await DBConnection.db.collection(collectionTeamSettings).deleteOne({
+      teamName,
+    });
+    return DBConnection.db.collection(collectionName).deleteMany({
+      team: teamName,
+    });
+  }
+
   static async moveAnItem(updateData) {
     return await DBConnection.db
       .collection(collectionName)
@@ -577,69 +778,57 @@ class DBClient {
   }
 
   static async verifyAndSignUp(signUpData) {
-
-    let doesUserExits = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: signUpData.userName });
+    let doesUserExits = await DBConnection.db.collection(collectionLoginInfo).findOne({
+      $or: [{ userName: signUpData.userName }, { emailId: signUpData.emailId }],
+    });
 
     if (doesUserExits) {
-      return JSON.stringify(-1);
-    }
-
-    signUpData.password = bcrypt.hashSync(signUpData.password, saltRounds);
-
-    let addUser = await DBConnection.db.collection(collectionLoginInfo).insertOne(signUpData);
-
-    if (!addUser)
-      return -2;
-
-    const hash = bcrypt.hashSync(addUser.ops[0]._id, saltRounds);
-
-    let userInfo =
-    {
-      sessionId: hash,
-      userName: addUser.ops[0].userName,
-      teams: addUser.ops[0].teams,
-      role: addUser.ops[0].role
-    };
-
-    return userInfo;
-  }
-
-  static async authenticate(loginData) {
-
-    let userInfo = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: loginData.userName });
-
-    if (!userInfo || !bcrypt.compareSync(loginData.password, userInfo.password)) {
       return -1;
     }
 
-    const hash = bcrypt.hashSync(userInfo._id, saltRounds);
-
-    let logInfo =
-    {
-      sessionId: hash,
-      userName: userInfo.userName,
-      teams: userInfo.teams,
-      role: userInfo.role
+    const userRecord = {
+      _id: createIdentifier(),
+      userName: signUpData.userName,
+      emailId: signUpData.emailId,
+      passwordHash: createPasswordHash(signUpData.password),
+      role: signUpData.role || defaultUserRole,
+      teams: signUpData.teams || defaultTeams,
+      createdAt: new Date(),
     };
 
-    return logInfo;
+    let addUser = await DBConnection.db.collection(collectionLoginInfo).insertOne(userRecord);
+
+    if (!addUser || !addUser.insertedId) {
+      return -2;
+    }
+
+    return normalizeUserRecord(userRecord);
+  }
+
+  static async authenticate(loginData) {
+    let userInfo = await DBConnection.db.collection(collectionLoginInfo).findOne({
+      userName: loginData.userName,
+    });
+
+    const passwordHash = userInfo ? userInfo.passwordHash || userInfo.password : null;
+
+    if (!userInfo || !verifyPassword(loginData.password, passwordHash)) {
+      return -1;
+    }
+
+    return normalizeUserRecord(userInfo);
   }
 
   static async isSessionValid(userInfo, checkTeamName) {
+    const authenticatedUser = await DBClient.getUserForSession(userInfo.sessionId);
 
-    let doesUserExits = await DBConnection.db.collection(collectionLoginInfo).findOne({ userName: userInfo.userName });
-
-    if (!doesUserExits) {
+    if (!authenticatedUser) {
       return false;
     }
 
-    if (!bcrypt.compareSync(doesUserExits._id.toString(), userInfo.sessionId)) {
+    if (userInfo.userName && authenticatedUser.userName !== userInfo.userName) {
       return false;
     }
-
-    // if (true === checkTeamName) {
-    //   return doesUserExits.teams.includes(userInfo.teamName)
-    // }
 
     return true;
   }

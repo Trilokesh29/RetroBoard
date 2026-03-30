@@ -1,68 +1,86 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# RetroBoard
 
-## Available Scripts
+RetroBoard is a retrospective board for teams to capture feedback, vote on priorities, and review sprint trends.
 
-In the project directory, you can run:
+## Single Way To View The App
 
-### `npm start`
+Use the repo root as the only entry point.
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+1. Start MongoDB locally on `mongodb://127.0.0.1:27017`.
+2. From the repo root, install app dependencies once:
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+```powershell
+npm run setup
+```
 
-### `npm test`
+3. From the repo root, start the full app:
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```powershell
+npm start
+```
 
-### `npm run build`
+4. Open [http://localhost:8081](http://localhost:8081).
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+`npm start` now launches both:
+- the API server from [`Server`](C:\sb\playground\RetroBoard\Server)
+- the React client from [`Client`](C:\sb\playground\RetroBoard\Client)
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+## Demo Mode Without A Server
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+If you want to view the app without starting MongoDB or the API server, use the built-in browser demo mode.
 
-### `npm run eject`
+1. From the repo root, start demo mode:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```powershell
+npm run demo
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. Open [http://localhost:8081](http://localhost:8081).
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+`npm run demo` now auto-installs the client dependencies the first time if they are missing.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+If you want to preinstall only the demo client without starting it, use:
 
-## Learn More
+```powershell
+npm run setup:demo
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Demo mode runs entirely in the browser with seeded sample data persisted in local storage.
+Use:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- username: `demo_lead`
+- password: `demo1234`
 
-### Code Splitting
+## Demo Mode With Real Jira Pulls
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+If you want to test Jira integration without starting MongoDB or the full RetroBoard API, use the local Jira bridge flow:
 
-### Analyzing the Bundle Size
+```powershell
+npm run demo:jira
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+Then open [http://localhost:8081](http://localhost:8081).
 
-### Making a Progressive Web App
+This mode still keeps RetroBoard data in the browser, but Jira-backed teams created during that session will:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+- validate the pasted Jira board URL
+- use your Jira email / username and API token through a tiny local bridge
+- pull the real board sprint list
+- sync real sprint velocity and story-point data
 
-### Advanced Configuration
+Notes:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+- Existing seeded demo Jira teams still use mock Jira data. Create a new Jira-backed team to test the live Jira path.
+- The local bridge runs on `http://localhost:3001`.
+- Jira credentials are kept in the local bridge process memory, not in RetroBoard demo local storage.
+- If you stop `npm run demo:jira`, recreate the Jira-backed demo team the next time you launch it so the bridge connection can be re-established.
 
-### Deployment
+## Notes
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+- The API runs on `http://localhost:3000`.
+- The UI runs on `http://localhost:8081`.
+- If you only want a production frontend build, run:
 
-### `npm run build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+```powershell
+npm run build
+```

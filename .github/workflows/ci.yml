@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            Client/package-lock.json
+            Server/package-lock.json
+
+      - name: Install client and server dependencies
+        run: npm run setup
+
+      - name: Build client
+        run: npm run build
+
+      - name: Run client tests
+        run: npm run test
+
+      - name: Syntax check server and local launch scripts
+        run: |
+          node --check Server/src/index.js
+          node --check Server/src/routes/databasebroker.js
+          node --check Server/src/database/mongo.js
+          node --check Server/src/integrations/jira.js
+          node --check Server/src/auth/security.js
+          node --check scripts/dev.js
+          node --check scripts/demo.js
+          node --check scripts/demo-jira.js
+          node --check scripts/demo-jira-bridge.js
