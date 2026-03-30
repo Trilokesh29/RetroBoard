@@ -1,5 +1,4 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
@@ -10,18 +9,47 @@ const { DBConnection } = require("./database/mongo");
 
 // defining the Express app
 const app = express();
+const port = process.env.PORT || 3000;
+const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:8081";
 
 // adding Helmet to enhance your API's security
-app.use(helmet());
+app.use(
+    helmet({
+        crossOriginResourcePolicy: false,
+    })
+);
 
-// parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+    const cookieHeader = req.headers.cookie || "";
+    req.cookies = cookieHeader
+        .split(";")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .reduce((cookies, entry) => {
+            const separatorIndex = entry.indexOf("=");
 
-// using bodyParser to parse JSON bodies into JS objects
-app.use(bodyParser.json());
+            if (separatorIndex === -1) {
+                return cookies;
+            }
 
-// enabling CORS for all requests
-app.use(cors());
+            const key = decodeURIComponent(entry.slice(0, separatorIndex));
+            const value = decodeURIComponent(entry.slice(separatorIndex + 1));
+            cookies[key] = value;
+            return cookies;
+        }, {});
+
+    next();
+});
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+app.use(
+    cors({
+        origin: clientOrigin,
+        credentials: true,
+    })
+);
 
 // adding morgan to log HTTP requests
 app.use(morgan("combined"));
@@ -37,6 +65,6 @@ nodeCleanup(function(exitCode, signal) {
 app.use(databasebroker, pdfGenerator);
 
 // starting the server
-app.listen(3000, () => {
-    console.log("listening on port 3000");
+app.listen(port, () => {
+    console.log(`listening on port ${port}`);
 });
